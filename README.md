@@ -1,0 +1,2 @@
+# astrbot_plugin_dafeiyu_weather
+一个更智能的大肥鱼天气插件
