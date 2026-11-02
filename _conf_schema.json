@@ -1,0 +1,364 @@
+{
+  "basic": {
+    "type": "object",
+    "description": "👤 谁能用、怎么问",
+    "hint": "默认只允许 AstrBot 管理员（主人）使用；白名单里的 QQ 也能用。",
+    "items": {
+      "allowed_users": {
+        "type": "list",
+        "description": "白名单 QQ",
+        "default": [],
+        "hint": "除了主人（AstrBot 管理员）以外，还允许哪些 QQ 号查天气。一行一个；留空则只有主人能用。"
+      },
+      "allow_private_all": {
+        "type": "bool",
+        "description": "私聊所有人都能用",
+        "default": true,
+        "hint": "默认开启：私聊谁能跟她说话，谁就能查天气（一般由 AstrBot 自带白名单把关）。想只允许主人和白名单 QQ，关掉这个开关。"
+      },
+      "group_require_at": {
+        "type": "bool",
+        "description": "群里必须 @ 她才响应",
+        "default": true,
+        "hint": "建议保持开启，避免她在群里看到“天气”两个字就插话。"
+      },
+      "ask_location": {
+        "type": "bool",
+        "description": "第一次问一次城市",
+        "default": true,
+        "hint": "关闭后不会主动问，而是直接使用下面的“默认城市”。"
+      },
+      "ask_timeout": {
+        "type": "int",
+        "description": "等她回答城市的时限（分钟）",
+        "default": 10,
+        "slider": {
+          "min": 1,
+          "max": 60,
+          "step": 1
+        },
+        "hint": "超过这个时间还没说城市，下次问天气会重新问一遍。"
+      },
+      "default_city": {
+        "type": "string",
+        "description": "默认城市",
+        "default": "",
+        "hint": "可选。填了以后，没绑定地区的人查天气就直接按这里查，比如“临沂”。留空则先问城市。"
+      }
+    }
+  },
+  "sources": {
+    "type": "object",
+    "description": "🌐 天气数据源",
+    "hint": "三个都是免费、不用申请 key 的公益接口。按下面的顺序尝试，一个没响应自动换下一个。",
+    "items": {
+      "order": {
+        "type": "list",
+        "description": "尝试顺序",
+        "default": [
+          "cnweather",
+          "open_meteo",
+          "wttr"
+        ],
+        "options": [
+          "cnweather",
+          "open_meteo",
+          "wttr"
+        ],
+        "labels": [
+          "中国天气网（国内最准，含空气质量/预警）",
+          "Open-Meteo（全球通用，含体感温度）",
+          "wttr.in（最后的兜底）"
+        ],
+        "hint": "越靠前越优先。至少保留一个；删掉的源就不会再被调用。"
+      },
+      "timeout": {
+        "type": "int",
+        "description": "单次请求超时（秒）",
+        "default": 6,
+        "slider": {
+          "min": 2,
+          "max": 20,
+          "step": 1
+        },
+        "hint": "某个源超过这个时间没回应，就判定失败并换下一个。"
+      },
+      "retries": {
+        "type": "int",
+        "description": "失败重试次数",
+        "default": 1,
+        "slider": {
+          "min": 0,
+          "max": 3,
+          "step": 1
+        },
+        "hint": "同一个源失败后先重试几次，还不行才切换。网络差可以设 1。"
+      },
+      "cooldown": {
+        "type": "int",
+        "description": "失败后冷却（秒）",
+        "default": 300,
+        "slider": {
+          "min": 0,
+          "max": 3600,
+          "step": 30
+        },
+        "hint": "某个源刚失败过，在这段时间内直接跳过它，避免每次都卡在同一个坏源上。"
+      },
+      "cache_ttl": {
+        "type": "int",
+        "description": "天气缓存（秒）",
+        "default": 600,
+        "slider": {
+          "min": 0,
+          "max": 3600,
+          "step": 60
+        },
+        "hint": "同一城市在这段时间内重复问，直接回缓存，不再请求接口。0 表示不缓存。"
+      }
+    }
+  },
+  "reply": {
+    "type": "object",
+    "description": "💬 怎么回",
+    "hint": "默认用当前人格把天气数据润色成她平时说话的样子。",
+    "items": {
+      "mode": {
+        "type": "string",
+        "description": "回复方式",
+        "default": "llm",
+        "options": [
+          "llm",
+          "template"
+        ],
+        "labels": [
+          "人格润色（推荐，会消耗少量模型额度）",
+          "固定模板（不花 token，语气比较平）"
+        ],
+        "hint": "人格润色会调用当前会话的对话模型，把数据转成她自己的口吻。"
+      },
+      "use_persona": {
+        "type": "bool",
+        "description": "使用当前人格",
+        "default": true,
+        "hint": "开启后读取 AstrBot 里的人设提示词；关闭则用通用的简短聊天口吻。"
+      },
+      "max_chars": {
+        "type": "int",
+        "description": "回复字数上限",
+        "default": 200,
+        "slider": {
+          "min": 60,
+          "max": 600,
+          "step": 10
+        },
+        "hint": "天气播报最多这么长，超过会截断。人设要求短句的可以设 120～160。"
+      },
+      "forecast_days": {
+        "type": "int",
+        "description": "预报天数",
+        "default": 3,
+        "slider": {
+          "min": 1,
+          "max": 7,
+          "step": 1
+        },
+        "hint": "给模型参考未来几天的预报。"
+      },
+      "extra_prompt": {
+        "type": "text",
+        "description": "附加要求（可选）",
+        "default": "",
+        "hint": "比如“每次都要提醒我带伞”“不要用颜文字”。会追加在润色提示词里。"
+      },
+      "llm_timeout": {
+        "type": "int",
+        "description": "润色超时（秒）",
+        "default": 25,
+        "slider": {
+          "min": 5,
+          "max": 120,
+          "step": 5
+        },
+        "hint": "模型超过这个时间没回，就直接用模板兜底，不让用户干等。"
+      }
+    }
+  },
+  "features": {
+    "type": "object",
+    "description": "🧩 小功能",
+    "items": {
+      "enable_commands": {
+        "type": "bool",
+        "description": "启用 /天气 指令",
+        "default": true,
+        "hint": "关闭后只保留自然语言识别，不响应 /天气、/天气绑定、/天气解绑。"
+      },
+      "show_alerts": {
+        "type": "bool",
+        "description": "带上气象预警",
+        "default": true,
+        "hint": "中国天气网有预警时，让模型顺口提一句。"
+      },
+      "show_air_quality": {
+        "type": "bool",
+        "description": "带上空气质量",
+        "default": true,
+        "hint": "有 AQI 数据时一起参考；会多一次 Open-Meteo 空气质量请求（失败也不影响天气）。"
+      },
+      "life_indices": {
+        "type": "bool",
+        "description": "融入生活指数",
+        "default": true,
+        "hint": "把穿衣、紫外线、晾晒、洗车等指数挑一两条自然地说出来，不做成长列表。"
+      },
+      "ask_polish": {
+        "type": "bool",
+        "description": "问城市也用人设口吻",
+        "default": true,
+        "hint": "关闭后用内置的固定问法，省一次模型调用。"
+      },
+      "followup": {
+        "type": "bool",
+        "description": "接得住追问",
+        "default": true,
+        "hint": "「那明天呢」「会下吗」「周末呢」沿用上一次的城市，只换预报范围。"
+      },
+      "followup_minutes": {
+        "type": "int",
+        "description": "追问有效期（分钟）",
+        "default": 10,
+        "slider": {
+          "min": 1,
+          "max": 60,
+          "step": 1
+        },
+        "hint": "超过这个时间再问「那明天呢」，就当作新对话。"
+      },
+      "departure_scene": {
+        "type": "bool",
+        "description": "出门场景提醒",
+        "default": true,
+        "hint": "用户说「我出门了」「去上班了」时，不查天气也顺口提醒温度和带伞。"
+      },
+      "weather_mood": {
+        "type": "bool",
+        "description": "天气影响语气",
+        "default": true,
+        "hint": "下雨懒一点、晴天活泼一点，只影响润色提示词，不改变数据。"
+      },
+      "compare_last": {
+        "type": "bool",
+        "description": "和上次查询对比",
+        "default": true,
+        "hint": "记住上次的温度，这次顺口说一句「比上次冷了 4 度」。"
+      },
+      "personify_errors": {
+        "type": "bool",
+        "description": "失败时也用人设口吻",
+        "default": true,
+        "hint": "天气源全挂时，不让用户看到干巴巴的报错话术。"
+      },
+      "typo_guess": {
+        "type": "bool",
+        "description": "猜错别字 / 同音字",
+        "default": true,
+        "hint": "「杭洲」「临祈」这类查不到时，让模型猜一次并问「你是说杭州吗」，确认后再绑定。"
+      },
+      "location_card": {
+        "type": "bool",
+        "description": "支持 QQ 位置卡片",
+        "default": true,
+        "hint": "用户发位置时自动解析城市并绑定，需要 BigDataCloud 或 wttr 反查，可能慢一两秒。"
+      },
+      "aliases": {
+        "type": "bool",
+        "description": "多城市别名",
+        "default": true,
+        "hint": "支持「记住老家是临沂」「公司是杭州」，之后问「老家天气」就查对应城市。"
+      },
+      "hourly_rain": {
+        "type": "bool",
+        "description": "小时级降水",
+        "default": true,
+        "hint": "回答「几点开始下雨」「雨什么时候停」，用 Open-Meteo 逐小时数据，国内精度一般。"
+      },
+      "meme": {
+        "type": "bool",
+        "description": "天气配表情图",
+        "default": false,
+        "hint": "开启后从表情目录挑一张跟天气匹配的图一起发；目录里放 rain.png、sunny.png、snow.png、cloudy.png、hot.png、cold.png、default.png 即可。"
+      },
+      "meme_dir": {
+        "type": "string",
+        "description": "表情目录",
+        "default": "",
+        "hint": "留空使用 data/plugin_data/astrbot_plugin_dafeiyu_weather/memes；也可以填绝对路径。"
+      },
+      "festival_egg": {
+        "type": "bool",
+        "description": "节气 / 初雪彩蛋",
+        "default": false,
+        "hint": "节气当天和今年第一场雪时顺口提一句；节气日期用常用近似算法，个别年份可能差一天。"
+      }
+    }
+  },
+  "reminder": {
+    "type": "object",
+    "description": "⏰ 主动提醒",
+    "hint": "用 AstrBot 自带的定时任务，默认早上 7:30 检查一次；每人每天最多一条，夜间不发。",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "description": "开启主动提醒",
+        "default": false,
+        "hint": "只有遇到预警、大雨、下雪、明显降温、高温、严寒或空气很差时才提醒，不是每天固定骚扰。"
+      },
+      "cron": {
+        "type": "string",
+        "description": "检查时间（cron）",
+        "default": "0 8 * * *",
+        "hint": "五段 cron：分 时 日 月 周。默认每天 08:00；想早晚各看一次可填 0 8,19 * * *（每人每天仍只发一条）。"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "时区",
+        "default": "",
+        "hint": "留空跟随 AstrBot 的时区设置，一般不用填。"
+      },
+      "temp_drop": {
+        "type": "int",
+        "description": "降温提醒阈值（℃）",
+        "default": 6,
+        "slider": {
+          "min": 2,
+          "max": 20,
+          "step": 1
+        },
+        "hint": "比上次记录冷这么多度时提醒。"
+      },
+      "quiet_start": {
+        "type": "int",
+        "description": "夜间静音开始（点）",
+        "default": 22,
+        "slider": {
+          "min": 0,
+          "max": 24,
+          "step": 1
+        },
+        "hint": "这个点之后到次日 quiet_end 之前不主动发消息。"
+      },
+      "quiet_end": {
+        "type": "int",
+        "description": "夜间静音结束（点）",
+        "default": 8,
+        "slider": {
+          "min": 0,
+          "max": 24,
+          "step": 1
+        },
+        "hint": "这个点之后才允许主动提醒。"
+      }
+    }
+  }
+}

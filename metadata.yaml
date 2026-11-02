@@ -1,0 +1,7 @@
+name: astrbot_plugin_dafeiyu_weather
+display_name: 大肥鱼天气
+desc: 自然语言查天气：会记城市、接得住追问、出门提醒、多城市别名、小时级降水；中国天气网 / Open-Meteo / wttr.in 多源自动切换，并按当前人格润色。
+short_desc: 会记城市、会追问、会提醒的自然语言天气插件
+version: 1.1.1
+author: DSH
+astrbot_version: ">=4.24.0"
